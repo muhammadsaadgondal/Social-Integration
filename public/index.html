@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Media API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+    }
+
+    button {
+      margin: 10px 0;
+    }
+
+    select,
+    textarea,
+    input {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px;
+    }
+
+    #response {
+      margin-top: 20px;
+    }
+
+    #response.green {
+      color: green;
+    }
+
+    #response.red {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Social Media API Tester</h1>
+
+    <!-- Authentication -->
+    <button id="authBtn">Authenticate with Facebook</button>
+
+    <!-- Fetch Pages and Instagram Accounts -->
+    <h2>Step 2: Fetch Your Social Media Accounts</h2>
+    <button id="fetchPagesBtn">Fetch Facebook Pages</button>
+    <button id="fetchInstaAccountsBtn">Fetch Instagram Accounts</button>
+
+    <div id="pagesList"></div>
+    <div id="instagramAccountsList"></div>
+
+    <!-- Post Section -->
+    <h2>Step 3: Post to Social Media</h2>
+    <label for="caption">Caption:</label>
+    <textarea id="caption" rows="4" placeholder="Enter your caption"></textarea>
+
+    <label for="image">Select Image:</label>
+    <input type="file" id="image" name="image" accept="image/*">
+
+    <div>
+      <label for="pagesDropdown">Select a Facebook Page:</label>
+      <select id="pagesDropdown"></select>
+    </div>
+
+    <div>
+      <label for="instagramDropdown">Select an Instagram Account:</label>
+      <select id="instagramDropdown"></select>
+    </div>
+
+    <button id="postToInstagramBtn">Post to Instagram</button>
+    <button id="postToFacebookBtn">Post to Facebook</button>
+    <button id="postToBothBtn">Post to Both</button>
+    <button id="schedulePostBtn">Schedule Facebook Post</button>
+
+    <div id="response"></div>
+  </div>
+
+  <script>
+    const authButton = document.getElementById('authBtn');
+    const fetchPagesButton = document.getElementById('fetchPagesBtn');
+    const fetchInstaAccountsButton = document.getElementById('fetchInstaAccountsBtn');
+    const postToInstagramButton = document.getElementById('postToInstagramBtn');
+    const postToFacebookButton = document.getElementById('postToFacebookBtn');
+    const postToBothButton = document.getElementById('postToBothBtn');
+    const schedulePostButton = document.getElementById('schedulePostBtn');
+    const pagesDropdown = document.getElementById('pagesDropdown');
+    const instagramDropdown = document.getElementById('instagramDropdown');
+    const responseDiv = document.getElementById('response');
+    const captionInput = document.getElementById('caption');
+    const imageInput = document.getElementById('image');
+
+    // Step 1: Authenticate with Facebook
+    authButton.addEventListener('click', () => {
+      window.location.href = '/facebook/auth'; // Redirects to the authentication route
+    });
+
+    // Step 2: Fetch Facebook Pages
+    fetchPagesButton.addEventListener('click', () => {
+      fetch('/pages')
+        .then(response => response.json())
+        .then(pages => {
+          const pagesList = document.getElementById('pagesList');
+          pagesList.innerHTML = `<strong>Your Pages:</strong><pre>${JSON.stringify(pages, null, 2)}</pre>`;
+
+          // Populate dropdown
+          pagesDropdown.innerHTML = pages.map(page => `<option value="${page.id}">${page.name}</option>`).join('');
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = 'Failed to fetch Facebook pages: ' + err.message;
+        });
+    });
+
+    // Step 3: Fetch Instagram Accounts
+    fetchInstaAccountsButton.addEventListener('click', () => {
+      fetch('/instagram/accounts')
+        .then(response => response.json())
+        .then(data => {
+          const instagramAccountsList = document.getElementById('instagramAccountsList');
+          instagramAccountsList.innerHTML = `<strong>Your Instagram Accounts:</strong><pre>${JSON.stringify(data.instagramDetails, null, 2)}</pre>`;
+
+          // Populate dropdown
+          instagramDropdown.innerHTML = data.instagramDetails.map(account => `
+            <option value="${account.instagram_account_id}">
+              ${account.username} (Followers: ${account.followers_count})
+            </option>
+          `).join('');
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = 'Failed to fetch Instagram accounts: ' + err.message;
+        });
+    });
+
+    // Helper function to validate fields before posting
+    function validatePostFields() {
+      const caption = captionInput.value.trim();
+      const image = imageInput.files[0];
+      const selectedInstagram = instagramDropdown.value;
+      const selectedFacebook = pagesDropdown.value;
+
+      if (!caption || !image) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please provide a caption and select an image.';
+        return false;
+      }
+
+      if (!selectedInstagram && !selectedFacebook) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please select either a Facebook page or Instagram account.';
+        return false;
+      }
+
+      return true;
+    }
+
+    // Step 4: Post to Instagram
+    postToInstagramButton.addEventListener('click', () => {
+      if (!instagramDropdown.value) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please select an Instagram account to post to.';
+        return;
+      }
+
+      if (!validatePostFields()) return;
+
+      const formData = new FormData();
+      formData.append('caption', captionInput.value);
+      formData.append('image', imageInput.files[0]);
+      formData.append('instagramAccountId', instagramDropdown.value);
+
+      fetch('/insta-post-now', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => response.json())
+        .then(data => {
+          responseDiv.classList.add('green');
+          responseDiv.innerText = `Successfully posted to Instagram! Post ID: ${data.postId}`;
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = 'Failed to post to Instagram: ' + err.message;
+        });
+    });
+
+    // Step 5: Post to Facebook
+    postToFacebookButton.addEventListener('click', () => {
+      if (!pagesDropdown.value) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please select a Facebook page to post to.';
+        return;
+      }
+
+      if (!validatePostFields()) return;
+
+      const formData = new FormData();
+      formData.append('caption', captionInput.value);
+      formData.append('image', imageInput.files[0]);
+      formData.append('pageId', pagesDropdown.value);
+
+      fetch('/fb-post-now', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => response.json())
+        .then(data => {
+          responseDiv.classList.add('green');
+          responseDiv.innerText = `Successfully posted to Facebook! Post ID: ${data.postId}`;
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = 'Failed to post to Facebook: ' + err.message;
+        });
+    });
+
+    // Step 6: Post to Both (Instagram and Facebook)
+    postToBothButton.addEventListener('click', () => {
+      if (!validatePostFields()) return;
+
+      const formData = new FormData();
+      formData.append('caption', captionInput.value);
+      formData.append('image', imageInput.files[0]);
+
+      // Improvement: Validate dropdown selections before posting
+      const selectedInstagramAccount = instagramDropdown.value;
+      const selectedFacebookPage = pagesDropdown.value;
+
+      if (!selectedInstagramAccount || !selectedFacebookPage) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please select both Instagram account and Facebook page.';
+        return;
+      }
+
+      // Specific form data for each platform
+      const facebookFormData = new FormData();
+      facebookFormData.append('message', captionInput.value);
+      facebookFormData.append('image', imageInput.files[0]);
+      facebookFormData.append('pageId', selectedFacebookPage);
+
+      const instagramFormData = new FormData();
+      instagramFormData.append('caption', captionInput.value);
+      instagramFormData.append('image', imageInput.files[0]);
+      instagramFormData.append('instagramAccountId', selectedInstagramAccount);
+
+      // Sequential posting with error handling
+      fetch('/fb-post-now', {
+        method: 'POST',
+        body: facebookFormData
+      })
+        .then(response => {
+          if (!response.ok) throw new Error('Facebook post failed');
+          return response.json();
+        })
+        .then(fbData => {
+          responseDiv.classList.add('green');
+          responseDiv.innerText = `Successfully posted to Facebook! Post ID: ${fbData.postId}`;
+
+          // Post to Instagram after successful Facebook post
+          return fetch('/insta-post-now', {
+            method: 'POST',
+            body: instagramFormData
+          });
+        })
+        .then(response => {
+          if (!response.ok) throw new Error('Instagram post failed');
+          return response.json();
+        })
+        .then(instaData => {
+          responseDiv.classList.add('green');
+          responseDiv.innerText += `\nSuccessfully posted to Instagram! Post ID: ${instaData.postId}`;
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = `Posting failed: ${err.message}`;
+        });
+    });
+
+
+    // Step 7: Schedule Post on Facebook
+    schedulePostButton.addEventListener('click', () => {
+      if (!pagesDropdown.value) {
+        responseDiv.classList.add('red');
+        responseDiv.innerText = 'Please select a Facebook page to schedule post.';
+        return;
+      }
+
+      if (!validatePostFields()) return;
+
+      const formData = new FormData();
+      formData.append('caption', captionInput.value);
+      formData.append('image', imageInput.files[0]);
+      formData.append('pageId', pagesDropdown.value);
+      // You can add a datetime input for scheduling in the form
+
+      fetch('/fb-schedule-post', {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => response.json())
+        .then(data => {
+          responseDiv.classList.add('green');
+          responseDiv.innerText = `Successfully scheduled the post on Facebook! Post ID: ${data.postId}`;
+        })
+        .catch(err => {
+          responseDiv.classList.add('red');
+          responseDiv.innerText = 'Failed to schedule Facebook post: ' + err.message;
+        });
+    });
+  </script>
+</body>
+
+</html>
